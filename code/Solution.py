@@ -17,14 +17,14 @@ def createTables():
     attributeList = []
 
     attributeList.append(("PhotoID", "INT NOT NULL UNIQUE CHECK(PhotoID>0)"))
-    attributeList.append(("Description", "STRING NOT NULL"))
+    attributeList.append(("Description", "TEXT NOT NULL"))
     attributeList.append(("DiskSizeNeeded", "INT NOT NULL CHECK(DiskSizeNeeded>=0)"))
     attributeList.append(("PRIMARY KEY", "(PhotoID)"))
     createTable(table1Name, attributeList)
     attributeList.clear()
 
     attributeList.append(("DiskID", "INT NOT NULL UNIQUE CHECK(DiskID>0)"))
-    attributeList.append(("ManufacturingCompany", "STRING NOT NULL"))
+    attributeList.append(("ManufacturingCompany", "TEXT NOT NULL"))
     attributeList.append(("Speed", "INT NOT NULL CHECK(Speed>0)"))
     attributeList.append(("FreeSpace", "INT NOT NULL CHECK(FreeSpace>=0)"))
     attributeList.append(("CostPerByte", "INT NOT NULL CHECK(CostPerByte>0)"))
@@ -34,13 +34,30 @@ def createTables():
 
     attributeList.append(("RAMID", "INT NOT NULL UNIQUE CHECK(RAMID>0)"))
     attributeList.append(("Size", "INT NOT NULL CHECK(Size>0)"))
-    attributeList.append(("Company", "STRING NOT NULL"))
+    attributeList.append(("Company", "TEXT NOT NULL"))
     attributeList.append(("PRIMARY KEY", "(RAMID)"))
     createTable(table3Name, attributeList)
     attributeList.clear()
 
+    attributeList.append(("PhotoID", "INT"))
+    attributeList.append(("DiskID", "INT"))
+    attributeList.append(("FORIEGN KEY", "(PhotoID) REFERENCES"+table1Name+"(PhotoID) ON DELETE CASCADE ON UPDATE "
+                                                                           "CASCADE"))
+    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+table2Name+"(DiskID) ON DELETE CASCADE ON UPDATE "
+                                                                          "CASCADE"))
+    createTable(table4Name, attributeList)
+    attributeList.clear()
 
+    attributeList.append(("RAMID", "INT"))
+    attributeList.append(("DiskID", "INT"))
+    attributeList.append(("FORIEGN KEY", "(RAMID) REFERENCES"+table3Name+"(RAMID) ON DELETE CASCADE ON UPDATE "
+                                                                           "CASCADE"))
+    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+table2Name+"(DiskID) ON DELETE CASCADE ON UPDATE "
+                                                                          "CASCADE"))
+    createTable(table5Name, attributeList)
+    attributeList.clear()
 
+    #ADD VIEWS HERE!!!!!!!!!!!!
 
 def createTable(name, attributes: list):
     conn = Connector.DBConnector()
@@ -175,3 +192,6 @@ def mostAvailableDisks() -> List[int]:
 
 def getClosePhotos(photoID: int) -> List[int]:
     return []
+
+if __name__ == '__main__':
+    createTables()
