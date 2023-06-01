@@ -9,17 +9,47 @@ from psycopg2 import sql
 
 
 def createTables():
-    pass
+    table1Name = "Photo"
+    table2Name = "Disk"
+    table3Name = "RAM"
+    table4Name = "PhotoOnDisk"
+    table5Name = "RAMOnDisk"
+    list1 = []
+    list2 = []
+    list3 = []
+    list4 = []
+    list5 = []
+
+    list1.append(("Photo ID", "INT"))
+    list1.append(("Description", "STRING"))
+    list1.append(("Disk Size Needed", "INT"))
+    list1.append(("PRIMARY KEY", "(Photo ID)"))
+
 
 def createTable(name, attributes: list):
-    message =""
-    for item in attributes :
-        for subitem in item :
-            message += subitem + " "
-        message+=","
-    message-=message[-1]
     conn = Connector.DBConnector()
-    conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
+    try:
+        message =""
+        for item in attributes :
+            for subitem in item :
+                message += subitem + " "
+            message += ","
+        message -= message[:-1]
+        conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
+        conn.commit()
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    finally:
+        try:
+            conn.close()
+        except DatabaseException.ConnectionInvalid as e:
+            print(e)
+
+
+
+
+
+
 
 
 
