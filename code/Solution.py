@@ -102,7 +102,10 @@ def clearTables():
             print(e)
 
 def dropTables():
-    pass
+
+
+#ADD VIEWS HERE!!!!!!!!!!!!
+
 
 
 def addPhoto(photo: Photo) -> ReturnValue:
