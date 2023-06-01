@@ -14,16 +14,32 @@ def createTables():
     table3Name = "RAM"
     table4Name = "PhotoOnDisk"
     table5Name = "RAMOnDisk"
-    list1 = []
-    list2 = []
-    list3 = []
-    list4 = []
-    list5 = []
+    attributeList = []
 
-    list1.append(("Photo ID", "INT"))
-    list1.append(("Description", "STRING"))
-    list1.append(("Disk Size Needed", "INT"))
-    list1.append(("PRIMARY KEY", "(Photo ID)"))
+    attributeList.append(("PhotoID", "INT NOT NULL UNIQUE CHECK(PhotoID>0)"))
+    attributeList.append(("Description", "STRING NOT NULL"))
+    attributeList.append(("DiskSizeNeeded", "INT NOT NULL CHECK(DiskSizeNeeded>=0)"))
+    attributeList.append(("PRIMARY KEY", "(PhotoID)"))
+    createTable(table1Name, attributeList)
+    attributeList.clear()
+
+    attributeList.append(("DiskID", "INT NOT NULL UNIQUE CHECK(DiskID>0)"))
+    attributeList.append(("ManufacturingCompany", "STRING NOT NULL"))
+    attributeList.append(("Speed", "INT NOT NULL CHECK(Speed>0)"))
+    attributeList.append(("FreeSpace", "INT NOT NULL CHECK(FreeSpace>=0)"))
+    attributeList.append(("CostPerByte", "INT NOT NULL CHECK(CostPerByte>0)"))
+    attributeList.append(("PRIMARY KEY", "(DiskID)"))
+    createTable(table2Name, attributeList)
+    attributeList.clear()
+
+    attributeList.append(("RAMID", "INT NOT NULL UNIQUE CHECK(RAMID>0)"))
+    attributeList.append(("Size", "INT NOT NULL CHECK(Size>0)"))
+    attributeList.append(("Company", "STRING NOT NULL"))
+    attributeList.append(("PRIMARY KEY", "(RAMID)"))
+    createTable(table3Name, attributeList)
+    attributeList.clear()
+
+
 
 
 def createTable(name, attributes: list):
@@ -34,7 +50,7 @@ def createTable(name, attributes: list):
             for subitem in item :
                 message += subitem + " "
             message += ","
-        message -= message[:-1]
+        message = message[:-1]
         conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
         conn.commit()
     except DatabaseException.ConnectionInvalid as e:
