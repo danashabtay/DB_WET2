@@ -7,20 +7,26 @@ from Business.RAM import RAM
 from Business.Disk import Disk
 from psycopg2 import sql
 
+PHOTO_TABLE = "Photo"
+DISK_TABLE = "Disk"
+
+
+tablenames={
+    "photoTable":"Photo",
+    "DiskTable":"Disk",
+    "RAMTable":"RAM",
+    "DiskAndPhotoTable":"PhotoOnDisk",
+    "RAMAndDiskTable":"RAMOnDisk"
+}
 
 def createTables():
-    table1Name = "Photo"
-    table2Name = "Disk"
-    table3Name = "RAM"
-    table4Name = "PhotoOnDisk"
-    table5Name = "RAMOnDisk"
     attributeList = []
 
     attributeList.append(("PhotoID", "INT NOT NULL UNIQUE CHECK(PhotoID>0)"))
     attributeList.append(("Description", "TEXT NOT NULL"))
     attributeList.append(("DiskSizeNeeded", "INT NOT NULL CHECK(DiskSizeNeeded>=0)"))
     attributeList.append(("PRIMARY KEY", "(PhotoID)"))
-    createTable(table1Name, attributeList)
+    createTable(tablenames["photoTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("DiskID", "INT NOT NULL UNIQUE CHECK(DiskID>0)"))
@@ -29,32 +35,32 @@ def createTables():
     attributeList.append(("FreeSpace", "INT NOT NULL CHECK(FreeSpace>=0)"))
     attributeList.append(("CostPerByte", "INT NOT NULL CHECK(CostPerByte>0)"))
     attributeList.append(("PRIMARY KEY", "(DiskID)"))
-    createTable(table2Name, attributeList)
+    createTable(tablenames["DiskTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("RAMID", "INT NOT NULL UNIQUE CHECK(RAMID>0)"))
     attributeList.append(("Size", "INT NOT NULL CHECK(Size>0)"))
     attributeList.append(("Company", "TEXT NOT NULL"))
     attributeList.append(("PRIMARY KEY", "(RAMID)"))
-    createTable(table3Name, attributeList)
+    createTable(tablenames["RAMTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("PhotoID", "INT"))
     attributeList.append(("DiskID", "INT"))
-    attributeList.append(("FORIEGN KEY", "(PhotoID) REFERENCES"+table1Name+"(PhotoID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FORIEGN KEY", "(PhotoID) REFERENCES"+tablenames["photoTable"]+"(PhotoID) ON DELETE CASCADE ON UPDATE "
                                                                            "CASCADE"))
-    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+table2Name+"(DiskID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+tablenames["DiskTable"]+"(DiskID) ON DELETE CASCADE ON UPDATE "
                                                                           "CASCADE"))
-    createTable(table4Name, attributeList)
+    createTable(tablenames["DiskAndPhotoTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("RAMID", "INT"))
     attributeList.append(("DiskID", "INT"))
-    attributeList.append(("FORIEGN KEY", "(RAMID) REFERENCES"+table3Name+"(RAMID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FORIEGN KEY", "(RAMID) REFERENCES"+tablenames["RAMTable"]+"(RAMID) ON DELETE CASCADE ON UPDATE "
                                                                            "CASCADE"))
-    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+table2Name+"(DiskID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+tablenames["DiskTable"]+"(DiskID) ON DELETE CASCADE ON UPDATE "
                                                                           "CASCADE"))
-    createTable(table5Name, attributeList)
+    createTable(tablenames["RAMAndDiskTable"], attributeList)
     attributeList.clear()
 
     #ADD VIEWS HERE!!!!!!!!!!!!
@@ -70,25 +76,30 @@ def createTable(name, attributes: list):
         message = message[:-1]
         conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
         conn.commit()
-    except DatabaseException.ConnectionInvalid as e:
+    except DatabaseException as e:
         print(e)
     finally:
         try:
             conn.close()
-        except DatabaseException.ConnectionInvalid as e:
+        except DatabaseException as e:
             print(e)
 
 
-
-
-
-
-
-
-
 def clearTables():
-    pass
-
+    conn = Connector.DBConnector()
+    message = ""
+    try:
+        for table in tablenames.keys() :
+            message+=f"DELETE FROM {table}; \n"
+        conn.execute(message)
+        conn.commit()
+    except DatabaseException as e:
+        print(e)
+    finally:
+        try:
+            conn.close()
+        except DatabaseException as e:
+            print(e)
 
 def dropTables():
     pass
