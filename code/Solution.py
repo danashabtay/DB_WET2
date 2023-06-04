@@ -7,9 +7,11 @@ from Business.RAM import RAM
 from Business.Disk import Disk
 from psycopg2 import sql
 
-PHOTO_TABLE = "Photo"
-DISK_TABLE = "Disk"
-
+PHOTO_TABLE = "photoTable"
+DISK_TABLE = "DiskTable"
+RAM_TABLE = "RAMTable"
+DISK_AND_PHOTO = "DiskAndPhotoTable"
+RAM_AND_DISK = "RAMAndDiskTable"
 
 tablenames={
     "photoTable":"Photo",
@@ -18,6 +20,28 @@ tablenames={
     "DiskAndPhotoTable":"PhotoOnDisk",
     "RAMAndDiskTable":"RAMOnDisk"
 }
+def tryToClose (connection):
+    try:
+        conn.close()
+    except DatabaseException as e:
+        print(e)
+
+def createTable(name, attributes: list):
+    conn = Connector.DBConnector()
+    try:
+        message =""
+        for item in attributes :
+            for subitem in item :
+                message += subitem + " "
+            message += ","
+        message = message[:-1]
+        conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
+        conn.commit()
+    except DatabaseException as e:
+        print(e)
+    finally:
+        tryToClose(conn)
+
 
 def createTables():
     attributeList = []
@@ -48,43 +72,22 @@ def createTables():
     attributeList.append(("PhotoID", "INT"))
     attributeList.append(("DiskID", "INT"))
     attributeList.append(("FORIEGN KEY", "(PhotoID) REFERENCES"+tablenames["photoTable"]+"(PhotoID) ON DELETE CASCADE ON UPDATE "
-                                                                           "CASCADE"))
+                                                                          + "CASCADE"))
     attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+tablenames["DiskTable"]+"(DiskID) ON DELETE CASCADE ON UPDATE "
-                                                                          "CASCADE"))
+                                                                         + "CASCADE"))
     createTable(tablenames["DiskAndPhotoTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("RAMID", "INT"))
     attributeList.append(("DiskID", "INT"))
     attributeList.append(("FORIEGN KEY", "(RAMID) REFERENCES"+tablenames["RAMTable"]+"(RAMID) ON DELETE CASCADE ON UPDATE "
-                                                                           "CASCADE"))
+                                                                          + "CASCADE"))
     attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+tablenames["DiskTable"]+"(DiskID) ON DELETE CASCADE ON UPDATE "
-                                                                          "CASCADE"))
+                                                                         + "CASCADE"))
     createTable(tablenames["RAMAndDiskTable"], attributeList)
     attributeList.clear()
 
-    #ADD VIEWS HERE!!!!!!!!!!!!
-
-def createTable(name, attributes: list):
-    conn = Connector.DBConnector()
-    try:
-        message =""
-        for item in attributes :
-            for subitem in item :
-                message += subitem + " "
-            message += ","
-        message = message[:-1]
-        conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
-        conn.commit()
-    except DatabaseException as e:
-        print(e)
-    finally:
-        try:
-            conn.close()
-        except DatabaseException as e:
-            print(e)
-
-
+   #ADD VIEWS HERE!!!!!!!!!!!!
 def clearTables():
     conn = Connector.DBConnector()
     message = ""
@@ -96,23 +99,64 @@ def clearTables():
     except DatabaseException as e:
         print(e)
     finally:
-        try:
-            conn.close()
-        except DatabaseException as e:
-            print(e)
-
+        tryToClose(conn)
+        
 def dropTables():
-
+    conn = Connector.DBConnector()
+    message = ""
+    try:
+        for table in tablenames.keys() :
+            message+=f"DROP TABLE {table} CASCADE ; \n"
+        conn.execute(message)
+        conn.commit()
+    except DatabaseException as e:
+        print(e)
+    finally:
+        tryToClose(conn)
 
 #ADD VIEWS HERE!!!!!!!!!!!!
 
 
 
 def addPhoto(photo: Photo) -> ReturnValue:
-    return ReturnValue.OK
-
+    #the following checks could be replaced by a check violation exception
+    if photo.getPhotoID <= 0 or photo.getSize <0 :
+        return ReturnValue.BAD_PARAMS
+    if photo.getPhotoID is None or photo.getDescription is None or photo.getSize is None :
+        return ReturnValue.BAD_PARAMS 
+    message = f"INSERT INTO {tablenames[PHOTO_TABLE]}"+
+        "(PhotoID , Description, DiskSizeNeeded)"+
+        f" VALUES ({sql.literal(photo.getPhotoID)}, {sql.literal(photo.getDescription)} ,{sql.literal(photo.getDescription)}" 
+    conn = Connector.DBConnector()
+    try:
+        conn.execute(message)
+        conn.commit()
+    except DatabaseException.UNIQUE_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.ALREADY_EXISTS
+    except DatabaseException as e:
+        print(e)
+        tryToClose(conn)       
+        return ReturnValue.ERROR
+    finally:
+        tryToClose(conn)
+        return ReturnValue.OK
 
 def getPhotoByID(photoID: int) -> Photo:
+    conn=Connector.DBConnector()
+    message = f"SELECT * FROMP{tablenames[PHOTO_TABLE]} WHERE PhotoID = {photoID}"
+    try:
+        affected,answer = conn.execute(message)
+        conn.commit()
+    except DatabaseException as e:
+        print("should not be possible but here we are\n"+ e)
+        tryToClose(conn)
+        return Photo.badPhoto()
+    tryToClose(conn) 
+    if answer.isEmpty() :
+        return Photo.badPhoto()
+    #not sure what to do with a answer now, printing in the meantime
+    print(answer)
     return Photo()
 
 
