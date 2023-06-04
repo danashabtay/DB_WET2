@@ -116,8 +116,6 @@ def dropTables():
 
 #ADD VIEWS HERE!!!!!!!!!!!!
 
-
-
 def addPhoto(photo: Photo) -> ReturnValue:
     #the following checks could be replaced by a check violation exception
     if photo.getPhotoID <= 0 or photo.getSize <0 :
