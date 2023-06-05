@@ -22,35 +22,29 @@ tablenames={
 }
 def tryToClose (connection):
     try:
-        conn.close()
+        connection.close()
     except DatabaseException as e:
         print(e)
 
-def createTable(name, attributes: list):
-    conn = Connector.DBConnector()
-    try:
-        message =""
-        for item in attributes :
-            for subitem in item :
-                message += subitem + " "
-            message += ","
-        message = message[:-1]
-        conn.execute("CREATE TABLE "+name+"(" + message + ")"+";")
-        conn.commit()
-    except DatabaseException as e:
-        print(e)
-    finally:
-        tryToClose(conn)
+def createTableMessage(name, attributes: list):
+    message = ""
+    for item in attributes:
+        for subitem in item:
+            message += subitem + " "
+        message += ","
+    message = message[:-1]
+    return "CREATE TABLE "+name+"(" + message + ")"+";"
 
 
 def createTables():
+    conn = Connector.DBConnector()
     attributeList = []
 
     attributeList.append(("PhotoID", "INT NOT NULL UNIQUE CHECK(PhotoID>0)"))
     attributeList.append(("Description", "TEXT NOT NULL"))
     attributeList.append(("DiskSizeNeeded", "INT NOT NULL CHECK(DiskSizeNeeded>=0)"))
     attributeList.append(("PRIMARY KEY", "(PhotoID)"))
-    createTable(tablenames["photoTable"], attributeList)
+    message1 = createTableMessage(tablenames["photoTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("DiskID", "INT NOT NULL UNIQUE CHECK(DiskID>0)"))
@@ -59,33 +53,41 @@ def createTables():
     attributeList.append(("FreeSpace", "INT NOT NULL CHECK(FreeSpace>=0)"))
     attributeList.append(("CostPerByte", "INT NOT NULL CHECK(CostPerByte>0)"))
     attributeList.append(("PRIMARY KEY", "(DiskID)"))
-    createTable(tablenames["DiskTable"], attributeList)
+    message2 = createTableMessage(tablenames["DiskTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("RAMID", "INT NOT NULL UNIQUE CHECK(RAMID>0)"))
     attributeList.append(("Size", "INT NOT NULL CHECK(Size>0)"))
     attributeList.append(("Company", "TEXT NOT NULL"))
     attributeList.append(("PRIMARY KEY", "(RAMID)"))
-    createTable(tablenames["RAMTable"], attributeList)
+    message3 = createTableMessage(tablenames["RAMTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("PhotoID", "INT"))
     attributeList.append(("DiskID", "INT"))
-    attributeList.append(("FORIEGN KEY", "(PhotoID) REFERENCES"+tablenames["photoTable"]+"(PhotoID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FOREIGN KEY", "(PhotoID) REFERENCES "+tablenames["photoTable"]+" (PhotoID) ON DELETE CASCADE ON UPDATE "
                                                                           + "CASCADE"))
-    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+tablenames["DiskTable"]+"(DiskID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FOREIGN KEY", "(DiskID) REFERENCES "+tablenames["DiskTable"]+" (DiskID) ON DELETE CASCADE ON UPDATE "
                                                                          + "CASCADE"))
-    createTable(tablenames["DiskAndPhotoTable"], attributeList)
+    message4 = createTableMessage(tablenames["DiskAndPhotoTable"], attributeList)
     attributeList.clear()
 
     attributeList.append(("RAMID", "INT"))
     attributeList.append(("DiskID", "INT"))
-    attributeList.append(("FORIEGN KEY", "(RAMID) REFERENCES"+tablenames["RAMTable"]+"(RAMID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FOREIGN KEY", "(RAMID) REFERENCES "+tablenames["RAMTable"]+" (RAMID) ON DELETE CASCADE ON UPDATE "
                                                                           + "CASCADE"))
-    attributeList.append(("FORIEGN KEY", "(DiskID) REFERENCES"+tablenames["DiskTable"]+"(DiskID) ON DELETE CASCADE ON UPDATE "
+    attributeList.append(("FOREIGN KEY", "(DiskID) REFERENCES "+tablenames["DiskTable"]+" (DiskID) ON DELETE CASCADE ON UPDATE "
                                                                          + "CASCADE"))
-    createTable(tablenames["RAMAndDiskTable"], attributeList)
+    message5 = createTableMessage(tablenames["RAMAndDiskTable"], attributeList)
     attributeList.clear()
+
+    try:
+        conn.execute(message1 + message2 + message3 + message4 + message5)
+        conn.commit()
+    except DatabaseException as e:
+        print(e)
+    finally:
+        tryToClose(conn)
 
    #ADD VIEWS HERE!!!!!!!!!!!!
 def clearTables():
@@ -105,8 +107,8 @@ def dropTables():
     conn = Connector.DBConnector()
     message = ""
     try:
-        for table in tablenames.keys() :
-            message+=f"DROP TABLE {table} CASCADE ; \n"
+        for table in tablenames.values() :
+            message+=f"DROP TABLE IF EXISTS {table} CASCADE ; \n"
         conn.execute(message)
         conn.commit()
     except DatabaseException as e:
@@ -117,21 +119,26 @@ def dropTables():
 #ADD VIEWS HERE!!!!!!!!!!!!
 
 def addPhoto(photo: Photo) -> ReturnValue:
-    #the following checks could be replaced by a check violation exception
-    if photo.getPhotoID <= 0 or photo.getSize <0 :
-        return ReturnValue.BAD_PARAMS
-    if photo.getPhotoID is None or photo.getDescription is None or photo.getSize is None :
-        return ReturnValue.BAD_PARAMS 
-    message = f"INSERT INTO {tablenames[PHOTO_TABLE]}"+
-        "(PhotoID , Description, DiskSizeNeeded)"+
-        f" VALUES ({sql.literal(photo.getPhotoID)}, {sql.literal(photo.getDescription)} ,{sql.literal(photo.getDescription)}" 
-    conn = Connector.DBConnector()
+    message = f"""INSERT INTO {tablenames[PHOTO_TABLE]}(PhotoID, Description, DiskSizeNeeded) 
+    VALUES({photo.getPhotoID()}, {photo.getDescription()}, {photo.getSize()});"""
+
+    #need to revisit to change "" around decription accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
     try:
-        conn.execute(message)
+        conn = Connector.DBConnector()
+        print(message)
+        rows, values = conn.execute(message)
+        print(values)
         conn.commit()
     except DatabaseException.UNIQUE_VIOLATION as e:
         tryToClose(conn)
         return ReturnValue.ALREADY_EXISTS
+    except DatabaseException.CHECK_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException.NOT_NULL_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.BAD_PARAMS
     except DatabaseException as e:
         print(e)
         tryToClose(conn)       
@@ -141,48 +148,169 @@ def addPhoto(photo: Photo) -> ReturnValue:
         return ReturnValue.OK
 
 def getPhotoByID(photoID: int) -> Photo:
-    conn=Connector.DBConnector()
-    message = f"SELECT * FROMP{tablenames[PHOTO_TABLE]} WHERE PhotoID = {photoID}"
+    conn = Connector.DBConnector()
+    message = f"SELECT * FROM {tablenames[PHOTO_TABLE]} WHERE PhotoID = {photoID};"
     try:
-        affected,answer = conn.execute(message)
+        affected, answer = conn.execute(message)
         conn.commit()
     except DatabaseException as e:
-        print("should not be possible but here we are\n"+ e)
+        print("should not be possible but here we are\n" + e)
         tryToClose(conn)
         return Photo.badPhoto()
     tryToClose(conn) 
-    if answer.isEmpty() :
+    if answer.isEmpty():
         return Photo.badPhoto()
-    #not sure what to do with a answer now, printing in the meantime
-    print(answer)
-    return Photo()
+    photoResult = Photo(answer.rows[0][0], answer.rows[0][1], answer.rows[0][2])
+    return photoResult
 
 
 def deletePhoto(photo: Photo) -> ReturnValue:
+    conn = Connector.DBConnector()
+    message1 = f"""UPDATE {tablenames[DISK_TABLE]} SET FreeSpace = FreeSpace+{photo.getSize()} WHERE DiskID = (SELECT DiskID 
+               FROM {tablenames[DISK_AND_PHOTO]} WHERE PhotoID = {photo.getPhotoID()});"""
+
+    #return here after adding photo+disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    message2 = f"DELETE FROM {tablenames[PHOTO_TABLE]} WHERE PhotoID = {photo.getPhotoID()};"
+
+    try:
+        conn.execute(message1 + message2)
+        conn.commit()
+    except DatabaseException as e:
+        tryToClose(conn)
+        return ReturnValue.ERROR
+
     return ReturnValue.OK
 
 
 def addDisk(disk: Disk) -> ReturnValue:
-    return ReturnValue.OK
+    message = f"""INSERT INTO {tablenames[DISK_TABLE]}(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
+        VALUES({disk.getDiskID()}, {disk.getCompany()}, {disk.getSpeed()}, {disk.getFreeSpace()}, {disk.getCost()});"""
+
+    # need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    try:
+        conn = Connector.DBConnector()
+        print(message)
+        rows, values = conn.execute(message)
+        print(values)
+        conn.commit()
+    except DatabaseException.UNIQUE_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.ALREADY_EXISTS
+    except DatabaseException.CHECK_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException.NOT_NULL_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException as e:
+        print(e)
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    finally:
+        tryToClose(conn)
+        return ReturnValue.OK
 
 
 def getDiskByID(diskID: int) -> Disk:
-    return Disk()
+    conn = Connector.DBConnector()
+    message = f"SELECT * FROM {tablenames[DISK_TABLE]} WHERE DiskID = {diskID};"
+    try:
+        affected, answer = conn.execute(message)
+        conn.commit()
+    except DatabaseException as e:
+        print("should not be possible but here we are\n" + e)
+        tryToClose(conn)
+        return Disk.badDisk()
+    tryToClose(conn)
+    if answer.isEmpty():
+        return Disk.badDisk()
+    diskResult = Disk(answer.rows[0][0], answer.rows[0][1], answer.rows[0][2], answer.rows[0][3], answer.rows[0][4])
+    return diskResult
 
 
 def deleteDisk(diskID: int) -> ReturnValue:
+    conn = Connector.DBConnector()
+    message = f"DELETE FROM {tablenames[DISK_TABLE]} WHERE DiskID = {diskID};"
+    try:
+        rows, values = conn.execute(message)
+        conn.commit()
+        if rows == 0:
+            tryToClose(conn)
+            return ReturnValue.NOT_EXISTS
+    except DatabaseException as e:
+        tryToClose(conn)
+        return ReturnValue.ERROR
     return ReturnValue.OK
-
 
 def addRAM(ram: RAM) -> ReturnValue:
-    return ReturnValue.OK
+    message = f"""INSERT INTO {tablenames[RAM_TABLE]}(RAMID, Size, Company) 
+    VALUES({ram.getRamID()}, {ram.getSize()}, {ram.getCompany()});"""
+
+    #need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    try:
+        conn = Connector.DBConnector()
+        print(message)
+        rows, values = conn.execute(message)
+        print(values)
+        conn.commit()
+    except DatabaseException.UNIQUE_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.ALREADY_EXISTS
+    except DatabaseException.CHECK_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException.NOT_NULL_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException as e:
+        print(e)
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    finally:
+        tryToClose(conn)
+        return ReturnValue.OK
 
 
 def getRAMByID(ramID: int) -> RAM:
-    return RAM()
+    conn = Connector.DBConnector()
+    message = f"SELECT * FROM {tablenames[RAM_TABLE]} WHERE RAMID = {ramID};"
+    try:
+        affected, answer = conn.execute(message)
+        conn.commit()
+    except DatabaseException as e:
+        print("should not be possible but here we are\n" + e)
+        tryToClose(conn)
+        return RAM.badRAM()
+    tryToClose(conn)
+    if answer.isEmpty():
+        return RAM.badRAM()
+    RAMResult = RAM(answer.rows[0][0], answer.rows[0][1], answer.rows[0][2])
+    return RAMResult
 
 
 def deleteRAM(ramID: int) -> ReturnValue:
+    conn = Connector.DBConnector()
+    message1 = f"""UPDATE {tablenames[DISK_TABLE]} 
+    SET FreeSpace = FreeSpace+(SELECT Size FROM {tablenames[RAM_TABLE]} WHERE RAMID = {ramID}) 
+    WHERE DiskID = (SELECT DiskID FROM {tablenames[RAM_AND_DISK]} WHERE RAMID = {ramID});"""
+    print(message1)
+    # return here after adding ram+disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    message2 = f"DELETE FROM {tablenames[RAM_TABLE]} WHERE RAMID = {ramID};"
+    print(message2)
+    try:
+        rows, values = conn.execute(message1 + message2)
+        conn.commit()
+        if rows == 0:
+            tryToClose(conn)
+            return ReturnValue.NOT_EXISTS
+    except DatabaseException as e:
+        tryToClose(conn)
+        return ReturnValue.ERROR
+
     return ReturnValue.OK
 
 
@@ -250,4 +378,11 @@ def getClosePhotos(photoID: int) -> List[int]:
     return []
 
 if __name__ == '__main__':
-    createTables()
+    #dropTables()
+    #createTables()
+    #addPhoto(Photo(1, "'first'", 1))
+    #getPhotoByID(1)
+    #deletePhoto(Photo(1, "'first'", 1))
+    #addDisk(Disk(1, "'ONE'", 10, 5, 2))
+    #getDiskByID(1)
+    #deleteRAM(1)
