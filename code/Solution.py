@@ -503,11 +503,29 @@ def getTotalRamOnDisk(diskID: int) -> int:
 
 def getCostForDescription(description: str) -> int:
     message = f"""SELECT SUM(Cost) FROM ( SELECT 
-    
-    FROM PhotoOnDisk FULL JOIN Photo ON 
+    FROM (
+    SELECT DiskSizeNeeded*CostPerByte AS Cost FROM 
+    (SELECT PhotoID,DiskID  FROM PhotoOnDisk FULL JOIN Photo ON 
     PhotoOnDisk.PhotoID = Photo.PhotoID WHERE 
-    Photo.Description = {description} 
+    Photo.Description = {description}) AS T1 FULL JOIN Disk ON
+    T1.DiskID = Disk.DiskID)
     """
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        conn.rollback()
+        tryToClose(conn)
+        return -1
+
+    if rows == 0:
+        tryToClose(conn)
+        return 0
+
+    tryToClose(conn)
+    return values.rows[0][0]
 
 def getPhotosCanBeAddedToDisk(diskID: int) -> List[int]:
     return []
