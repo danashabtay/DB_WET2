@@ -481,12 +481,33 @@ def averagePhotosSizeOnDisk(diskID: int) -> float:
 
 
 def getTotalRamOnDisk(diskID: int) -> int:
-    return 0
 
+    message=f"""SELECT SUM(Size) FROM RAMOnDisk FULL JOIN RAM ON
+                                RAMOnDisk.RAMID=RAM.RAMID WHERE DiskID={diskID} GROUP BY DiskID"""
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        conn.rollback()
+        tryToClose(conn)
+        return -1
+
+    if rows == 0:
+        tryToClose(conn)
+        return 0
+
+    tryToClose(conn)
+    return values.rows[0][0]
 
 def getCostForDescription(description: str) -> int:
-    return 0
-
+    message = f"""SELECT SUM(Cost) FROM ( SELECT 
+    
+    FROM PhotoOnDisk FULL JOIN Photo ON 
+    PhotoOnDisk.PhotoID = Photo.PhotoID WHERE 
+    Photo.Description = {description} 
+    """
 
 def getPhotosCanBeAddedToDisk(diskID: int) -> List[int]:
     return []
