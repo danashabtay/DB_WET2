@@ -502,14 +502,12 @@ def getTotalRamOnDisk(diskID: int) -> int:
     return values.rows[0][0]
 
 def getCostForDescription(description: str) -> int:
-    message = f"""SELECT SUM(Cost) FROM ( SELECT 
-    FROM (
-    SELECT DiskSizeNeeded*CostPerByte AS Cost FROM 
-    (SELECT PhotoID,DiskID  FROM PhotoOnDisk FULL JOIN Photo ON 
-    PhotoOnDisk.PhotoID = Photo.PhotoID WHERE 
-    Photo.Description = {description}) AS T1 FULL JOIN Disk ON
-    T1.DiskID = Disk.DiskID)
-    """
+    message = sql.SQL("""SELECT SUM(DiskSizeNeeded*CostPerByte) AS CostForDescription FROM 
+    (SELECT Photo.PhotoID,DiskID,DiskSizeNeeded  FROM PhotoOnDisk FULL JOIN 
+    Photo ON PhotoOnDisk.PhotoID = Photo.PhotoID WHERE
+    Photo.Description = {d}) AS T1 FULL JOIN Disk ON
+    T1.DiskID = Disk.DiskID;""").format(d=sql.Literal(description))
+
     try:
         conn = Connector.DBConnector()
         rows, values = conn.execute(message)
@@ -520,7 +518,7 @@ def getCostForDescription(description: str) -> int:
         tryToClose(conn)
         return -1
 
-    if rows == 0:
+    if values.rows[0][0] == None:
         tryToClose(conn)
         return 0
 
@@ -528,11 +526,47 @@ def getCostForDescription(description: str) -> int:
     return values.rows[0][0]
 
 def getPhotosCanBeAddedToDisk(diskID: int) -> List[int]:
-    return []
+    list = []
+    message = sql.SQL("""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT FreeSpace 
+    FROM Disk WHERE DiskID = {diskid}) ORDER BY PhotoID DESC LIMIT 5;""").format(diskid=sql.Literal(diskID))
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return []
+
+    for number in values.rows:
+        list.append(number[0])
+
+    tryToClose(conn)
+    return list
 
 
 def getPhotosCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
-    return []
+    list = []
+    message = sql.SQL("""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT FreeSpace 
+        FROM Disk WHERE DiskID = {id}) AND DiskSizeNeeded <= (SELECT SUM(Size) FROM RAMONDISK FULL JOIN
+        RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID={id}) 
+        ORDER BY PhotoID ASC LIMIT 5;""").format(id=sql.Literal(diskID))
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return []
+
+    for number in values.rows:
+        list.append(number[0])
+
+    tryToClose(conn)
+    return list
 
 
 def isCompanyExclusive(diskID: int) -> bool:
@@ -567,23 +601,47 @@ if __name__ == '__main__':
     addPhoto(photo)
     #getPhotoByID(1)
     #deletePhoto(Photo(1, "'first'", 1))
-    disk = Disk(1, "'ONE'", 10, 5, 2)
+    disk = Disk(1, "'ONE'", 10, 15, 2)
     addDisk(disk)
 
     #getDiskByID(1)
     #deleteRAM(1)
     photo2 = Photo(2, "'first'", 2)
-    disk2 = Disk(2, "'ONE'", 10, 5, 2)
+    photo3 = Photo(3, "'first'", 2)
+    photo4 = Photo(4, "'first'", 2)
+    photo5 = Photo(5, "'first'", 2)
+    photo6 = Photo(6, "'first'", 2)
+    photo7 = Photo(7, "'first'", 2)
+    disk2 = Disk(2, "'ONE'", 10, 4, 2)
     addPhoto(photo2)
+    addPhoto(photo3)
+    addPhoto(photo4)
+    addPhoto(photo5)
+    addPhoto(photo6)
+    addPhoto(photo7)
     addDisk(disk2)
 
-    addPhotoToDisk(photo, 1)
+    #addPhotoToDisk(photo, 1)
     addPhotoToDisk(photo2, 2)
     addPhotoToDisk(photo, 2)
-    #ram = RAM(1,"'HELLO'",1)
-    #addRAM(ram)
 
-    #addRAMToDisk(1, 1)
+    ram = RAM(1, "'HELLO'", 5)
+    addRAM(ram)
+    addRAMToDisk(1, 1)
+
+
+    #rows2, values2 = conn.execute(f"""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT SUM(Size)
+    #FROM RAMONDISK FULL JOIN RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID=1) AND DiskSizeNeeded(
+    #SELECT FreeSpace FROM Disk WHERE DiskID = 1);""")
+
+    #row, values = conn.execute(f"""SELECT FreeSpace FROM Disk WHERE DiskID = 1;""")
+
+
+    print(getPhotosCanBeAddedToDiskAndRAM(1))
+
+    #print(getCostForDescription("first1"))
+
+
 
     #print(averagePhotosSizeOnDisk(3))
 
