@@ -123,7 +123,7 @@ def dropTables():
 def addPhoto(photo: Photo) -> ReturnValue:
     message = sql.SQL("""INSERT INTO {table}(PhotoID, Description, DiskSizeNeeded) 
     VALUES({pid}, {desc}, {size});""").format(pid =sql.Literal( photo.getPhotoID()),
-         desc=sql.Literal(photo.getDescription()),size =sql.Literal(photo.getSize()),table = sql.Literal(tablenames[PHOTO_TABLE]))  
+         desc=sql.Literal(photo.getDescription()),size =sql.Literal(photo.getSize()),table = tablenames[PHOTO_TABLE])  
 
     #need to revisit to change "" around decription accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -152,7 +152,7 @@ def addPhoto(photo: Photo) -> ReturnValue:
 
 def getPhotoByID(photoID: int) -> Photo:
     conn = Connector.DBConnector()
-    message = sql.SQL("SELECT * FROM {table} WHERE PhotoID = {pid};").format(table=sql.Literal(tablenames[PHOTO_TABLE]),pid=sql.Literal(photoID))
+    message = sql.SQL("SELECT * FROM {table} WHERE PhotoID = {pid};").format(table=tablenames[PHOTO_TABLE],pid=sql.Literal(photoID))
     try:
         affected, answer = conn.execute(message)
         conn.commit()
@@ -171,13 +171,13 @@ def getPhotoByID(photoID: int) -> Photo:
 def deletePhoto(photo: Photo) -> ReturnValue:
     conn = Connector.DBConnector()
     message1 = sql.SQL("""UPDATE {diskT} SET FreeSpace = FreeSpace+{size} WHERE DiskID = (SELECT DiskID 
-               FROM {diskAndT} WHERE PhotoID = {pid});""").format(diskT=sql.Literal(tablenames[DISK_TABLE])
-    ,diskAndT=sql.Literal(tablenames[DISK_AND_PHOTO]),size=sql.Literal(photo.getSize()),pid=sql.Literal(photo.getPhotoID()))
+               FROM {diskAndT} WHERE PhotoID = {pid});""").format(diskT=tablenames[DISK_TABLE]
+    ,diskAndT=tablenames[DISK_AND_PHOTO],size=sql.Literal(photo.getSize()),pid=sql.Literal(photo.getPhotoID()))
 
     #return here after adding photo+disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     message2 = sql.SQL("DELETE FROM {table} WHERE PhotoID = {pid};").format(
-    table=sql.Literal(tablenames[PHOTO_TABLE]),pid=sql.Literal(photo.getPhotoID()))
+    table=tablenames[PHOTO_TABLE],pid=sql.Literal(photo.getPhotoID()))
 
     try:
         conn.execute(message1 + message2)
@@ -193,7 +193,7 @@ def deletePhoto(photo: Photo) -> ReturnValue:
 def addDisk(disk: Disk) -> ReturnValue:
     message = sql.SQL("""INSERT INTO {diskT}(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
         VALUES({dID}, {dC}, {speed}, {space}, {cost});""").format(
-    diskT=sql.Literal(tablenames[DISK_TABLE]),dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
+    diskT=tablenames[DISK_TABLE],dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
     speed=sql.Literal(disk.getSpeed()),space=sql.Literal(disk.getFreeSpace()),cost=sql.Literal(disk.getCost()))
 
     # need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -225,7 +225,7 @@ def addDisk(disk: Disk) -> ReturnValue:
 def getDiskByID(diskID: int) -> Disk:
     conn = Connector.DBConnector()
     message = sql.SQL("SELECT * FROM {table} WHERE DiskID = {dID};").format(
-    table=sql.Literal(tablenames[DISK_TABLE]),dID=sql.Literal(diskID))
+    table=tablenames[DISK_TABLE],dID=sql.Literal(diskID))
     try:
         affected, answer = conn.execute(message)
         conn.commit()
@@ -244,7 +244,7 @@ def getDiskByID(diskID: int) -> Disk:
 def deleteDisk(diskID: int) -> ReturnValue:
     conn = Connector.DBConnector()
     message = sql.SQL("DELETE FROM {table} WHERE DiskID = {id};").format(
-    table=sql.Literal(tablenames[DISK_TABLE]),id=sql.Literal(diskID))
+    table=tablenames[DISK_TABLE],id=sql.Literal(diskID))
     try:
         rows, values = conn.execute(message)
         conn.commit()
@@ -261,7 +261,7 @@ def deleteDisk(diskID: int) -> ReturnValue:
 def addRAM(ram: RAM) -> ReturnValue:
     message = sql.SQL("""INSERT INTO {table}(RAMID,Company,Size) 
     VALUES({id}, {comp}, {size});""").format(
-    table=sql.Literal(tablenames[RAM_TABLE]),id=sql.Literal(ram.getRamID()),comp=sql.Literal(ram.getCompany()),size=sql.Literal(ram.getSize()))
+    table=tablenames[RAM_TABLE],id=sql.Literal(ram.getRamID()),comp=sql.Literal(ram.getCompany()),size=sql.Literal(ram.getSize()))
 
     #need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -291,7 +291,7 @@ def addRAM(ram: RAM) -> ReturnValue:
 
 def getRAMByID(ramID: int) -> RAM:
     conn = Connector.DBConnector()
-    message = f"SELECT * FROM {tablenames[RAM_TABLE]} WHERE RAMID = {ramID};"
+    message = sql.SQL("SELECT * FROM {table} WHERE RAMID = {id};").format(table=tablenames[RAM_TABLE],id=sql.Literal(ramID))
     try:
         affected, answer = conn.execute(message)
         conn.commit()
@@ -312,12 +312,12 @@ def deleteRAM(ramID: int) -> ReturnValue:
     message1 =sql.SQL("""UPDATE {Dtable} 
     SET FreeSpace = FreeSpace+(SELECT Size FROM {Rtable} WHERE RAMID = {id}) 
     WHERE DiskID = (SELECT DiskID FROM {RDtable} WHERE RAMID = {id});""").format(
-    Dtable=sql.Literal(tablenames[DISK_TABLE]),Rtable=sql.Literal(tablenames[RAM_TABLE]),id=sql.Literal(ramID),RDtable=sql.Literal(tablenames[RAM_AND_DISK]))
+    Dtable=tablenames[DISK_TABLE],Rtable=tablenames[RAM_TABLE],id=sql.Literal(ramID),RDtable=tablenames[RAM_AND_DISK])
     print(message1)
     # return here after adding ram+disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     message2 = sql.SQL("DELETE FROM {table} WHERE RAMID = {id};").format(
-   table=sql.Literal(tablenames[RAM_TABLE]),id=sql.Literal(ramID) )
+   table=tablenames[RAM_TABLE],id=sql.Literal(ramID) )
     print(message2)
     try:
         rows, values = conn.execute(message1 + message2)
