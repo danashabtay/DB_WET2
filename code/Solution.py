@@ -22,6 +22,7 @@ tablenames={
 }
 def tryToClose (connection):
     try:
+        connection.rollback()
         connection.close()
     except DatabaseException as e:
         print(e)
@@ -82,6 +83,11 @@ def createTables():
                                                                          + "CASCADE"))
     message5 = createTableMessage(tablenames["RAMAndDiskTable"], attributeList)
     attributeList.clear()
+
+    message6 = f"""CREATE VIEW PHOTO_DISK_DATA AS
+    SELECT *
+    FROM (Disk JOIN PhotoOnDisk ON Disk.DiskID=PhotoOnDisk.DiskID) AS T1 JOIN Photo AS T2 ON T1.PhotoID=T2.PhotoID 
+    """
 
     try:
         conn.execute(message1 + message2 + message3 + message4 + message5)
@@ -387,7 +393,6 @@ def addPhotoToDisk(photo: Photo, diskID: int) -> ReturnValue:
         return ReturnValue.BAD_PARAMS
     except DatabaseException as e:
         print(3)
-        conn.rollback()
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -410,7 +415,6 @@ def removePhotoFromDisk(photo: Photo, diskID: int) -> ReturnValue:
         print("shouldnt be happening!!!!!!!!!!!!!!!!!!!!:(")
     except DatabaseException as e:
         print(3)
-        conn.rollback()
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -440,7 +444,6 @@ def addRAMToDisk(ramID: int, diskID: int) -> ReturnValue:
         return ReturnValue.ERROR
     except DatabaseException as e:
         print(3)
-        conn.rollback()
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -463,7 +466,6 @@ def removeRAMFromDisk(ramID: int, diskID: int) -> ReturnValue:
             tryToClose(conn)
             return ReturnValue.NOT_EXISTS
     except DatabaseException as e:
-        conn.rollback()
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -472,7 +474,7 @@ def removeRAMFromDisk(ramID: int, diskID: int) -> ReturnValue:
 
 
 def averagePhotosSizeOnDisk(diskID: int) -> float:
-    message=sql.SQL("""SELECT AVG(DiskSizeNeeded) FROM PHOTOONDISK FULL JOIN PHOTO ON
+    message=sql.SQL("""SELECT AVG(DiskSizeNeeded) FROM PHOTOONDISK JOIN PHOTO ON
                                 PHOTOONDISK.PhotoID=Photo.PhotoID WHERE DiskID={id} GROUP BY DiskID""").format(
     id=sql.Literal(diskID))
     try:
@@ -481,7 +483,6 @@ def averagePhotosSizeOnDisk(diskID: int) -> float:
         conn.commit()
 
     except DatabaseException as e:
-        conn.rollback()
         tryToClose(conn)
         return -1
 
@@ -495,7 +496,7 @@ def averagePhotosSizeOnDisk(diskID: int) -> float:
 
 def getTotalRamOnDisk(diskID: int) -> int:
 
-    message=sql.SQL("""SELECT SUM(Size) FROM RAMOnDisk FULL JOIN RAM ON
+    message=sql.SQL("""SELECT SUM(Size) FROM RAMOnDisk JOIN RAM ON
                                 RAMOnDisk.RAMID=RAM.RAMID WHERE DiskID={id} GROUP BY DiskID""").format(id=sql.Literal(diskID))
     try:
         conn = Connector.DBConnector()
@@ -503,7 +504,6 @@ def getTotalRamOnDisk(diskID: int) -> int:
         conn.commit()
 
     except DatabaseException as e:
-        conn.rollback()
         tryToClose(conn)
         return -1
 
@@ -516,9 +516,9 @@ def getTotalRamOnDisk(diskID: int) -> int:
 
 def getCostForDescription(description: str) -> int:
     message = sql.SQL("""SELECT SUM(DiskSizeNeeded*CostPerByte) AS CostForDescription FROM 
-    (SELECT Photo.PhotoID,DiskID,DiskSizeNeeded  FROM PhotoOnDisk FULL JOIN 
+    (SELECT Photo.PhotoID,DiskID,DiskSizeNeeded  FROM PhotoOnDisk JOIN 
     Photo ON PhotoOnDisk.PhotoID = Photo.PhotoID WHERE
-    Photo.Description = {d}) AS T1 FULL JOIN Disk ON
+    Photo.Description = {d}) AS T1 JOIN Disk ON
     T1.DiskID = Disk.DiskID;""").format(d=sql.Literal(description))
 
     try:
@@ -527,7 +527,6 @@ def getCostForDescription(description: str) -> int:
         conn.commit()
 
     except DatabaseException as e:
-        conn.rollback()
         tryToClose(conn)
         return -1
 
@@ -562,7 +561,7 @@ def getPhotosCanBeAddedToDisk(diskID: int) -> List[int]:
 def getPhotosCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
     list = []
     message = sql.SQL("""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT FreeSpace 
-        FROM Disk WHERE DiskID = {id}) AND DiskSizeNeeded <= (SELECT SUM(Size) FROM RAMONDISK FULL JOIN
+        FROM Disk WHERE DiskID = {id}) AND DiskSizeNeeded <= (SELECT SUM(Size) FROM RAMONDISK JOIN
         RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID={id}) 
         ORDER BY PhotoID ASC LIMIT 5;""").format(id=sql.Literal(diskID))
 
@@ -584,7 +583,7 @@ def getPhotosCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
 
 def isCompanyExclusive(diskID: int) -> bool:
     message = sql.SQL("""SELECT DiskID FROM Disk WHERE DiskID={id} AND
-    NOT EXISTS(SELECT * FROM RAM FULL JOIN RAMOnDisk ON RAM.RAMId=RAMOnDisk.RAMID 
+    NOT EXISTS(SELECT * FROM RAM JOIN RAMOnDisk ON RAM.RAMId=RAMOnDisk.RAMID 
     WHERE RAMOnDisk.DiskID={id} AND RAM.Company<>
     (SELECT ManufacturingCompany FROM Disk WHERE DiskID={id}));""").format(id=sql.Literal(diskID))
 
@@ -725,6 +724,7 @@ def getClosePhotos(photoID: int) -> List[int]:
 
     tryToClose(conn)
     return list
+
 
 if __name__ == '__main__':
     conn = Connector.DBConnector()
