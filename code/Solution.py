@@ -666,11 +666,55 @@ def getConflictingDisks() -> List[int]:
 
 
 def mostAvailableDisks() -> List[int]:
-    return []
+    list = []
+    message = sql.SQL("""SELECT T1.DiskID FROM
+    (SELECT * FROM Photo INNER JOIN PhotoOnDisk ON Photo.PhotoID=PhotoOnDisk.PhotoID) AS T1 JOIN Disk 
+    ON T1.DiskID=Disk.DiskID WHERE Disk.FreeSpace>=T1.DiskSizeNeeded GROUP BY T1.DiskID, Disk.Speed, Disk.DiskID 
+    ORDER BY COUNT(*) DESC, Disk.Speed DESC, Disk.DiskID ASC LIMIT 5;""")
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return []
+
+    for number in values.rows:
+        list.append(number[0])
+
+    tryToClose(conn)
+    return list
 
 
 def getClosePhotos(photoID: int) -> List[int]:
-    return []
+    list = []
+    message = sql.SQL("""SELECT * FROM 
+    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID
+    WHERE 
+    DiskID IN (SELECT DiskID FROM PhotoOnDisk WHERE PhotoID={id}) AND Photo.PhotoID<>{id} 
+    GROUP BY Photo.PhotoID 
+    HAVING COUNT(DiskID)>=0.5*(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID={id})) AS T1 UNION
+    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID 
+    WHERE Photo.PhotoID<>{id} GROUP BY Photo.PhotoID, DiskID 
+    HAVING COUNT(DiskID)=(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID={id}) AND COUNT(DiskID)=0) 
+    ORDER BY PhotoID ASC LIMIT 10;""").format(id=sql.Literal(photoID))
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return []
+
+    for number in values.rows:
+        list.append(number[0])
+
+    tryToClose(conn)
+    return list
 
 if __name__ == '__main__':
     conn = Connector.DBConnector()
@@ -701,7 +745,8 @@ if __name__ == '__main__':
     addPhoto(photo7)
     addDisk(disk2)
 
-    addPhotoToDisk(photo, 1)
+    #addPhotoToDisk(photo, 1)
+    #addPhotoToDisk(photo, 2)
     addPhotoToDisk(photo2, 1)
     addPhotoToDisk(photo3, 1)
     addPhotoToDisk(photo3, 2)
@@ -709,7 +754,7 @@ if __name__ == '__main__':
 
     ram = RAM(1, "'two'", 2)
     addRAM(ram)
-    addRAMToDisk(1, 2)
+    #addRAMToDisk(1, 2)
 
 
     #rows2, values2 = conn.execute(f"""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT SUM(Size)
@@ -717,12 +762,24 @@ if __name__ == '__main__':
     #SELECT FreeSpace FROM Disk WHERE DiskID = 1);""")
 
 
-    row, values = conn.execute(f"""SELECT * FROM Photo JOIN PhotoOnDisk ON Photo.PhotoID=PhotoOnDisk.PhotoID;""")
+    row, values = conn.execute(f"""
+    SELECT * FROM 
+    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID
+    WHERE 
+    DiskID IN (SELECT DiskID FROM PhotoOnDisk WHERE PhotoID=1) AND Photo.PhotoID<>1 
+    GROUP BY Photo.PhotoID 
+    HAVING COUNT(DiskID)>=0.5*(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID=1)) AS T1 UNION
+    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID 
+    WHERE Photo.PhotoID<>1 GROUP BY Photo.PhotoID, DiskID 
+    HAVING COUNT(DiskID)=(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID=1) AND COUNT(DiskID)=0) 
+    ORDER BY PhotoID ASC LIMIT 10;""")
 
+    #row, values = conn.execute(f"""SELECT Photo.PhotoID, DiskID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID
+    #WHERE Photo.PhotoID<>1 GROUP BY Photo.PhotoID, DiskID HAVING COUNT(DiskID)=(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID=1)""")
     print(values)
     print(f"ROWS: {row}")
 
-    print(getConflictingDisks())
+    #print(mostAvailableDisks())
 
     #print(isDiskContainingAtLeastNumExists("first", 1))
     #print(isCompanyExclusive(2))
