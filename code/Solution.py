@@ -191,9 +191,9 @@ def deletePhoto(photo: Photo) -> ReturnValue:
 
 
 def addDisk(disk: Disk) -> ReturnValue:
-    message = sql.SQL("""INSERT INTO Disk(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
+    message = sql.SQL("""INSERT INTO {diskT}(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
         VALUES({dID}, {dC}, {speed}, {space}, {cost});""").format(
-    dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
+    diskT=tablenames[DISK_TABLE],dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
     speed=sql.Literal(disk.getSpeed()),space=sql.Literal(disk.getFreeSpace()),cost=sql.Literal(disk.getCost()))
 
     # need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -224,7 +224,8 @@ def addDisk(disk: Disk) -> ReturnValue:
 
 def getDiskByID(diskID: int) -> Disk:
     conn = Connector.DBConnector()
-    message = sql.SQL("SELECT * FROM Disk WHERE DiskID = {dID};").format(dID=sql.Literal(diskID))
+    message = sql.SQL("SELECT * FROM {table} WHERE DiskID = {dID};").format(
+    table=tablenames[DISK_TABLE],dID=sql.Literal(diskID))
     try:
         affected, answer = conn.execute(message)
         conn.commit()
