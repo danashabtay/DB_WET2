@@ -123,7 +123,7 @@ def dropTables():
 def addPhoto(photo: Photo) -> ReturnValue:
     message = sql.SQL("""INSERT INTO {table}(PhotoID, Description, DiskSizeNeeded) 
     VALUES({pid}, {desc}, {size});""").format(pid =sql.Literal( photo.getPhotoID()),
-         desc=sql.Literal(photo.getDescription()),size =sql.Literal(photo.getSize()),table = tablenames[PHOTO_TABLE])  
+         desc=sql.Literal(photo.getDescription()),size =sql.Literal(photo.getSize()),table = tablenames[PHOTO_TABLE])
 
     #need to revisit to change "" around decription accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -191,9 +191,9 @@ def deletePhoto(photo: Photo) -> ReturnValue:
 
 
 def addDisk(disk: Disk) -> ReturnValue:
-    message = sql.SQL("""INSERT INTO {diskT}(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
+    message = sql.SQL("""INSERT INTO Disk(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
         VALUES({dID}, {dC}, {speed}, {space}, {cost});""").format(
-    diskT=tablenames[DISK_TABLE],dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
+    dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
     speed=sql.Literal(disk.getSpeed()),space=sql.Literal(disk.getFreeSpace()),cost=sql.Literal(disk.getCost()))
 
     # need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -224,8 +224,7 @@ def addDisk(disk: Disk) -> ReturnValue:
 
 def getDiskByID(diskID: int) -> Disk:
     conn = Connector.DBConnector()
-    message = sql.SQL("SELECT * FROM {table} WHERE DiskID = {dID};").format(
-    table=tablenames[DISK_TABLE],dID=sql.Literal(diskID))
+    message = sql.SQL("SELECT * FROM Disk WHERE DiskID = {dID};").format(dID=sql.Literal(diskID))
     try:
         affected, answer = conn.execute(message)
         conn.commit()
@@ -334,14 +333,14 @@ def deleteRAM(ramID: int) -> ReturnValue:
 
 
 def addDiskAndPhoto(disk: Disk, photo: Photo) -> ReturnValue:
-    message1 =sql.SQL( """INSERT INTO {table}(PhotoID, Description, DiskSizeNeeded) 
-        VALUES({pid}, {desc}, {size});""").format(
-    table=sql.Literal(tablenames[PHOTO_TABLE]),pid=sql.Literal(photo.getPhotoID()),desc=sql.Literal(photo.getDescription())
-        ,size=sql.Literal(photo.getSize()))
-    message2 =sql.SQL("""INSERT INTO {table}(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
-            VALUES({id}, {comp}, {speed}, {space}, {cost});""").format(table=sql.Literal(tablenames[DISK_TABLE]),
-        id=sql.Literal(disk.getDiskID()),comp=sql.Literal(disk.getCompany()),
-        speed=sql.Literal(disk.getSpeed()),space=sql.Literal(disk.getFreeSpace()),cost=sql.Literal(disk.getCost()))
+    message1 =sql.SQL( """INSERT INTO Photo(PhotoID, Description, DiskSizeNeeded) 
+        VALUES({pid}, {desc}, {size});""").format(pid=sql.Literal(photo.getPhotoID()),
+                                                  desc=sql.Literal(photo.getDescription()),
+                                                  size=sql.Literal(photo.getSize()))
+    message2 =sql.SQL("""INSERT INTO Disk(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
+            VALUES({id}, {comp}, {speed}, {space}, {cost});""").format(id=sql.Literal(disk.getDiskID()),
+                                                                       comp=sql.Literal(disk.getCompany()),
+        speed=sql.Literal(disk.getSpeed()), space=sql.Literal(disk.getFreeSpace()), cost=sql.Literal(disk.getCost()))
 
     # need to revisit to change "" around decription accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
