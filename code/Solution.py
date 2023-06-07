@@ -426,6 +426,9 @@ def addRAMToDisk(ramID: int, diskID: int) -> ReturnValue:
         print(2)
         tryToClose(conn)
         return ReturnValue.ALREADY_EXISTS
+    except DatabaseException.CHECK_VIOLATION as e:
+        tryToClose(conn)
+        return ReturnValue.ERROR
     except DatabaseException as e:
         print(3)
         conn.rollback()
@@ -570,19 +573,96 @@ def getPhotosCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
 
 
 def isCompanyExclusive(diskID: int) -> bool:
-    return True
+    message = sql.SQL("""SELECT DiskID FROM Disk WHERE DiskID={id} AND
+    NOT EXISTS(SELECT * FROM RAM FULL JOIN RAMOnDisk ON RAM.RAMId=RAMOnDisk.RAMID 
+    WHERE RAMOnDisk.DiskID={id} AND RAM.Company<>
+    (SELECT ManufacturingCompany FROM Disk WHERE DiskID={id}));""").format(id=sql.Literal(diskID))
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return False
+
+    print(rows)
+    if rows != 0:
+        tryToClose(conn)
+        return True
+
+    tryToClose(conn)
+    return False
 
 
 def isDiskContainingAtLeastNumExists(description : str, num : int) -> bool:
-    return True
+    message = sql.SQL("""SELECT PhotoOnDisk.DiskID FROM Photo JOIN PhotoOnDisk ON Photo.PhotoId=PhotoOnDisk.PhotoId 
+    WHERE Photo.Description={desc} GROUP BY PhotoOnDisk.DiskID HAVING COUNT(Photo.PhotoId)>={number};""")\
+        .format(desc=sql.Literal(description), number=sql.Literal(num))
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return False
+
+    print(f"num rows: {rows}")
+    print(f"num VALS: {values}")
+
+    if rows != 0:
+        tryToClose(conn)
+        return True
+
+    tryToClose(conn)
+    return False
 
 
 def getDisksContainingTheMostData() -> List[int]:
-    return []
+    list = []
+    message = sql.SQL("""SELECT PhotoOnDisk.DiskID FROM Photo JOIN PhotoOnDisk ON Photo.PhotoID=PhotoOnDisk.PhotoID 
+    GROUP BY PhotoOnDisk.DiskID ORDER BY SUM(DiskSizeNeeded) DESC, DiskID ASC LIMIT 5;""")
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return []
+
+    for number in values.rows:
+        list.append(number[0])
+
+    tryToClose(conn)
+    return list
 
 
 def getConflictingDisks() -> List[int]:
-    return []
+    list = []
+    message = sql.SQL("""SELECT DISTINCT T1.DiskID FROM (SELECT D1.DiskID, PhotoONDisk.PhotoID 
+    FROM Disk AS D1 JOIN PhotoONDisk ON D1.DiskID=PhotoONDisk.DiskID) AS T1 JOIN 
+    (SELECT D1.DiskID, PhotoONDisk.PhotoID FROM Disk AS D1 JOIN PhotoONDisk ON D1.DiskID=PhotoONDisk.DiskID) 
+    AS T2 ON T2.PhotoID=T1.PhotoID WHERE T1.DiskID<>T2.DiskID ORDER BY T1.DiskID ASC;""")
+
+    try:
+        conn = Connector.DBConnector()
+        rows, values = conn.execute(message)
+        conn.commit()
+
+    except DatabaseException as e:
+        tryToClose(conn)
+        return []
+
+    for number in values.rows:
+        list.append(number[0])
+
+    tryToClose(conn)
+    return list
 
 
 def mostAvailableDisks() -> List[int]:
@@ -612,7 +692,7 @@ if __name__ == '__main__':
     photo5 = Photo(5, "'first'", 2)
     photo6 = Photo(6, "'first'", 2)
     photo7 = Photo(7, "'first'", 2)
-    disk2 = Disk(2, "'ONE'", 10, 4, 2)
+    disk2 = Disk(2, "'two'", 10, 4, 2)
     addPhoto(photo2)
     addPhoto(photo3)
     addPhoto(photo4)
@@ -621,24 +701,31 @@ if __name__ == '__main__':
     addPhoto(photo7)
     addDisk(disk2)
 
-    #addPhotoToDisk(photo, 1)
-    addPhotoToDisk(photo2, 2)
-    addPhotoToDisk(photo, 2)
+    addPhotoToDisk(photo, 1)
+    addPhotoToDisk(photo2, 1)
+    addPhotoToDisk(photo3, 1)
+    addPhotoToDisk(photo3, 2)
 
-    ram = RAM(1, "'HELLO'", 5)
+
+    ram = RAM(1, "'two'", 2)
     addRAM(ram)
-    addRAMToDisk(1, 1)
+    addRAMToDisk(1, 2)
 
 
     #rows2, values2 = conn.execute(f"""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT SUM(Size)
     #FROM RAMONDISK FULL JOIN RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID=1) AND DiskSizeNeeded(
     #SELECT FreeSpace FROM Disk WHERE DiskID = 1);""")
 
-    #row, values = conn.execute(f"""SELECT FreeSpace FROM Disk WHERE DiskID = 1;""")
 
+    row, values = conn.execute(f"""SELECT * FROM Photo JOIN PhotoOnDisk ON Photo.PhotoID=PhotoOnDisk.PhotoID;""")
 
-    print(getPhotosCanBeAddedToDiskAndRAM(1))
+    print(values)
+    print(f"ROWS: {row}")
 
+    print(getConflictingDisks())
+
+    #print(isDiskContainingAtLeastNumExists("first", 1))
+    #print(isCompanyExclusive(2))
     #print(getCostForDescription("first1"))
 
 
