@@ -84,16 +84,14 @@ def createTables():
     message5 = createTableMessage(tablenames["RAMAndDiskTable"], attributeList)
     attributeList.clear()
 
-    message6 = f"""CREATE VIEW PHOTO_DISK_DATA AS
-    SELECT *
-    FROM (Disk JOIN PhotoOnDisk ON Disk.DiskID=PhotoOnDisk.DiskID) AS T1 JOIN Photo AS T2 ON T1.PhotoID=T2.PhotoID 
-    """
-
     try:
         conn.execute(message1 + message2 + message3 + message4 + message5)
         conn.commit()
     except DatabaseException as e:
         print(e)
+        tryToClose(conn)
+    except:
+        tryToClose(conn)
 
     tryToClose(conn)
 
@@ -102,7 +100,7 @@ def clearTables():
     conn = Connector.DBConnector()
     message = ""
     try:
-        for table in tablenames.keys() :
+        for table in tablenames.values() :
             message+=f"DELETE FROM {table}; \n"
         conn.execute(message)
         conn.commit()
@@ -135,9 +133,7 @@ def addPhoto(photo: Photo) -> ReturnValue:
 
     try:
         conn = Connector.DBConnector()
-        print(message)
         rows, values = conn.execute(message)
-        print(values)
         conn.commit()
     except DatabaseException.UNIQUE_VIOLATION as e:
         tryToClose(conn)
@@ -152,6 +148,9 @@ def addPhoto(photo: Photo) -> ReturnValue:
         print(e)
         tryToClose(conn)       
         return ReturnValue.ERROR
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     return ReturnValue.OK
@@ -163,7 +162,9 @@ def getPhotoByID(photoID: int) -> Photo:
         affected, answer = conn.execute(message)
         conn.commit()
     except DatabaseException as e:
-        print("should not be possible but here we are\n" + e)
+        tryToClose(conn)
+        return Photo.badPhoto()
+    except:
         tryToClose(conn)
         return Photo.badPhoto()
 
@@ -176,7 +177,7 @@ def getPhotoByID(photoID: int) -> Photo:
 
 def deletePhoto(photo: Photo) -> ReturnValue:
     conn = Connector.DBConnector()
-    message1 = sql.SQL("""UPDATE Disk SET FreeSpace = FreeSpace+{size} WHERE DiskID = (SELECT DiskID 
+    message1 = sql.SQL("""UPDATE Disk SET FreeSpace = FreeSpace+{size} WHERE DiskID IN (SELECT DiskID 
                FROM PhotoOnDisk WHERE PhotoID = {pid});""").format(size=sql.Literal(photo.getSize()),pid=sql.Literal(photo.getPhotoID()))
 
     #return here after adding photo+disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -189,6 +190,9 @@ def deletePhoto(photo: Photo) -> ReturnValue:
     except DatabaseException as e:
         tryToClose(conn)
         return ReturnValue.ERROR
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     return ReturnValue.OK
@@ -196,16 +200,15 @@ def deletePhoto(photo: Photo) -> ReturnValue:
 
 def addDisk(disk: Disk) -> ReturnValue:
     message = sql.SQL("""INSERT INTO Disk(DiskID, ManufacturingCompany, Speed, FreeSpace, CostPerByte) 
-        VALUES({dID}, {dC}, {speed}, {space}, {cost});""").format(dID=sql.Literal(disk.getDiskID()),dC=sql.Literal(disk.getCompany()),
+        VALUES({dID}, {dC}, {speed}, {space}, {cost});""").format(dID=sql.Literal(disk.getDiskID()),
+                                                                  dC=sql.Literal(disk.getCompany()),
     speed=sql.Literal(disk.getSpeed()),space=sql.Literal(disk.getFreeSpace()),cost=sql.Literal(disk.getCost()))
 
     # need to revisit to change "" around company accordingly!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     try:
         conn = Connector.DBConnector()
-        print(message)
         rows, values = conn.execute(message)
-        print(values)
         conn.commit()
     except DatabaseException.UNIQUE_VIOLATION as e:
         tryToClose(conn)
@@ -220,6 +223,9 @@ def addDisk(disk: Disk) -> ReturnValue:
         print(e)
         tryToClose(conn)
         return ReturnValue.ERROR
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     return ReturnValue.OK
@@ -232,9 +238,11 @@ def getDiskByID(diskID: int) -> Disk:
         affected, answer = conn.execute(message)
         conn.commit()
     except DatabaseException as e:
-        print("should not be possible but here we are\n" + e)
         tryToClose(conn)
         return Disk.badDisk()
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     if answer.isEmpty():
@@ -255,6 +263,9 @@ def deleteDisk(diskID: int) -> ReturnValue:
     except DatabaseException as e:
         tryToClose(conn)
         return ReturnValue.ERROR
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     return ReturnValue.OK
@@ -268,9 +279,7 @@ def addRAM(ram: RAM) -> ReturnValue:
 
     try:
         conn = Connector.DBConnector()
-        print(message)
         rows, values = conn.execute(message)
-        print(values)
         conn.commit()
     except DatabaseException.UNIQUE_VIOLATION as e:
         tryToClose(conn)
@@ -285,6 +294,9 @@ def addRAM(ram: RAM) -> ReturnValue:
         print(e)
         tryToClose(conn)
         return ReturnValue.ERROR
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     return ReturnValue.OK
@@ -297,9 +309,11 @@ def getRAMByID(ramID: int) -> RAM:
         affected, answer = conn.execute(message)
         conn.commit()
     except DatabaseException as e:
-        print("should not be possible but here we are\n" + e)
         tryToClose(conn)
         return RAM.badRAM()
+    except:
+        tryToClose(conn)
+        return ReturnValue.ERROR
 
     tryToClose(conn)
     if answer.isEmpty():
@@ -310,21 +324,18 @@ def getRAMByID(ramID: int) -> RAM:
 
 def deleteRAM(ramID: int) -> ReturnValue:
     conn = Connector.DBConnector()
-    message1 =sql.SQL("""UPDATE Disk 
-    SET FreeSpace = FreeSpace+(SELECT Size FROM RAM WHERE RAMID = {id}) 
-    WHERE DiskID = (SELECT DiskID FROM RAMOnDisk WHERE RAMID = {id});""").format(id=sql.Literal(ramID))
-    print(message1)
-    # return here after adding ram+disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    message = sql.SQL("DELETE FROM RAM WHERE RAMID = {id};").format(id=sql.Literal(ramID) )
 
-    message2 = sql.SQL("DELETE FROM RAM WHERE RAMID = {id};").format(id=sql.Literal(ramID) )
-    print(message2)
     try:
-        rows, values = conn.execute(message1 + message2)
+        rows, values = conn.execute(message)
         conn.commit()
         if rows == 0:
             tryToClose(conn)
             return ReturnValue.NOT_EXISTS
     except DatabaseException as e:
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    except:
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -346,15 +357,20 @@ def addDiskAndPhoto(disk: Disk, photo: Photo) -> ReturnValue:
 
     try:
         conn = Connector.DBConnector()
-        print(message1 + message2)
         rows, values = conn.execute(message1 + message2)
-        print(values)
         conn.commit()
     except DatabaseException.UNIQUE_VIOLATION as e:
         tryToClose(conn)
         return ReturnValue.ALREADY_EXISTS
+    except DatabaseException.CHECK_VIOLATION as e:
+        print(e)
+        tryToClose(conn)
+        return ReturnValue.ERROR
     except DatabaseException as e:
         print(e)
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    except:
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -369,14 +385,12 @@ def addPhotoToDisk(photo: Photo, diskID: int) -> ReturnValue:
     message2 = sql.SQL("""UPDATE Disk SET Freespace = Freespace - {size} 
     WHERE DiskID={dID};""").format(size=sql.Literal(photo.getSize())
         ,dID=sql.Literal(diskID))
-    print(message1+message2)
     try:
         conn = Connector.DBConnector()
         rows, values = conn.execute(message1 + message2)
         conn.commit()
     except DatabaseException.NOT_NULL_VIOLATION as e:
         print(e)
-        print(1)
         tryToClose(conn)
         return ReturnValue.BAD_PARAMS
     except DatabaseException.FOREIGN_KEY_VIOLATION as e:
@@ -384,37 +398,42 @@ def addPhotoToDisk(photo: Photo, diskID: int) -> ReturnValue:
         tryToClose(conn)
         return ReturnValue.NOT_EXISTS
     except DatabaseException.UNIQUE_VIOLATION as e:
-        print(2)
         tryToClose(conn)
         return ReturnValue.ALREADY_EXISTS
     except DatabaseException.CHECK_VIOLATION as e:
-        print(5)
         tryToClose(conn)
         return ReturnValue.BAD_PARAMS
     except DatabaseException as e:
-        print(3)
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    except:
         tryToClose(conn)
         return ReturnValue.ERROR
 
-    print(4)
     tryToClose(conn)
     return ReturnValue.OK
 
 
 def removePhotoFromDisk(photo: Photo, diskID: int) -> ReturnValue:
-    message1 = sql.SQL("""DELETE FROM PhotoOnDisk 
+    message1 = sql.SQL("""UPDATE Disk SET Freespace = Freespace + {size} 
+            WHERE DiskID IN (SELECT DiskID FROM PhotoOnDisk 
+        WHERE PhotoID={pid} AND DiskID={dID});""").format(dID=sql.Literal(diskID), size=sql.Literal(photo.getSize()),
+                                                          pid=sql.Literal(photo.getPhotoID()))
+
+    message2 = sql.SQL("""DELETE FROM PhotoOnDisk 
         WHERE PhotoID={pid} AND DiskID={did};""").format(pid=sql.Literal(photo.getPhotoID()),did=sql.Literal(diskID))
-    message2 = sql.SQL("""UPDATE Disk SET Freespace = Freespace + {size} 
-        WHERE DiskID={dID};""").format(dID=sql.Literal(diskID),size=sql.Literal(photo.getSize()))
-    print(message1 + message2)
+
     try:
         conn = Connector.DBConnector()
         rows, values = conn.execute(message1 + message2)
         conn.commit()
     except DatabaseException.NOT_NULL_VIOLATION as e:
-        print("shouldnt be happening!!!!!!!!!!!!!!!!!!!!:(")
+        tryToClose(conn)
+        return ReturnValue.ERROR
     except DatabaseException as e:
-        print(3)
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    except:
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -422,50 +441,49 @@ def removePhotoFromDisk(photo: Photo, diskID: int) -> ReturnValue:
 
 
 def addRAMToDisk(ramID: int, diskID: int) -> ReturnValue:
-    message1 = sql.SQL("""INSERT INTO RAMOnDisk(RAMID, DiskID) VALUES({rID}, {dID});""").format(
+    message = sql.SQL("""INSERT INTO RAMOnDisk(RAMID, DiskID) VALUES({rID}, {dID});""").format(
     rID=sql.Literal(ramID),dID=sql.Literal(diskID))
-    message2 = sql.SQL("""UPDATE DISK SET Freespace = Freespace - (SELECT Size FROM 
-    RAM WHERE RAMID = {rID}) WHERE DiskID={dID};""").format(rID=sql.Literal(ramID),dID=sql.Literal(diskID))
-    print(message1+message2)
+
     try:
         conn = Connector.DBConnector()
-        rows, values = conn.execute(message1+message2)
+        rows, values = conn.execute(message)
         conn.commit()
     except DatabaseException.FOREIGN_KEY_VIOLATION as e:
         print(e)
         tryToClose(conn)
         return ReturnValue.NOT_EXISTS
     except DatabaseException.UNIQUE_VIOLATION as e:
-        print(2)
         tryToClose(conn)
         return ReturnValue.ALREADY_EXISTS
     except DatabaseException.CHECK_VIOLATION as e:
         tryToClose(conn)
         return ReturnValue.ERROR
     except DatabaseException as e:
-        print(3)
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    except:
         tryToClose(conn)
         return ReturnValue.ERROR
 
-    print(4)
     tryToClose(conn)
     return ReturnValue.OK
 
 
 def removeRAMFromDisk(ramID: int, diskID: int) -> ReturnValue:
-    message1 = sql.SQL("""DELETE FROM RAMOnDisk 
-            WHERE RAMID={id} AND DiskID={dID};""").format(id=sql.Literal(ramID),dID=sql.Literal(diskID))
-    message2 = sql.SQL("""UPDATE DISK SET Freespace = Freespace + (SELECT Size FROM 
-    RAM WHERE RAMID = {rID}) WHERE DiskID={dID};""").format(rID=ramID,dID=diskID)
-    print(message1 + message2)
+    message = sql.SQL("""DELETE FROM RAMOnDisk 
+               WHERE RAMID={id} AND DiskID={dID};""").format(id=sql.Literal(ramID), dID=sql.Literal(diskID))
+
     try:
         conn = Connector.DBConnector()
-        rows, values = conn.execute(message1 + message2)
+        rows, values = conn.execute(message)
         conn.commit()
         if rows == 0:
             tryToClose(conn)
             return ReturnValue.NOT_EXISTS
     except DatabaseException as e:
+        tryToClose(conn)
+        return ReturnValue.ERROR
+    except:
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -483,6 +501,9 @@ def averagePhotosSizeOnDisk(diskID: int) -> float:
         conn.commit()
 
     except DatabaseException as e:
+        tryToClose(conn)
+        return -1
+    except:
         tryToClose(conn)
         return -1
 
@@ -504,6 +525,9 @@ def getTotalRamOnDisk(diskID: int) -> int:
         conn.commit()
 
     except DatabaseException as e:
+        tryToClose(conn)
+        return -1
+    except:
         tryToClose(conn)
         return -1
 
@@ -529,6 +553,9 @@ def getCostForDescription(description: str) -> int:
     except DatabaseException as e:
         tryToClose(conn)
         return -1
+    except:
+        tryToClose(conn)
+        return -1
 
     if values.rows[0][0] == None:
         tryToClose(conn)
@@ -548,6 +575,9 @@ def getPhotosCanBeAddedToDisk(diskID: int) -> List[int]:
         conn.commit()
 
     except DatabaseException as e:
+        tryToClose(conn)
+        return []
+    except:
         tryToClose(conn)
         return []
 
@@ -573,6 +603,9 @@ def getPhotosCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
     except DatabaseException as e:
         tryToClose(conn)
         return []
+    except:
+        tryToClose(conn)
+        return []
 
     for number in values.rows:
         list.append(number[0])
@@ -595,8 +628,10 @@ def isCompanyExclusive(diskID: int) -> bool:
     except DatabaseException as e:
         tryToClose(conn)
         return False
+    except:
+        tryToClose(conn)
+        return False
 
-    print(rows)
     if rows != 0:
         tryToClose(conn)
         return True
@@ -618,9 +653,9 @@ def isDiskContainingAtLeastNumExists(description : str, num : int) -> bool:
     except DatabaseException as e:
         tryToClose(conn)
         return False
-
-    print(f"num rows: {rows}")
-    print(f"num VALS: {values}")
+    except:
+        tryToClose(conn)
+        return False
 
     if rows != 0:
         tryToClose(conn)
@@ -641,6 +676,9 @@ def getDisksContainingTheMostData() -> List[int]:
         conn.commit()
 
     except DatabaseException as e:
+        tryToClose(conn)
+        return []
+    except:
         tryToClose(conn)
         return []
 
@@ -666,6 +704,9 @@ def getConflictingDisks() -> List[int]:
     except DatabaseException as e:
         tryToClose(conn)
         return []
+    except:
+        tryToClose(conn)
+        return []
 
     for number in values.rows:
         list.append(number[0])
@@ -687,6 +728,9 @@ def mostAvailableDisks() -> List[int]:
         conn.commit()
 
     except DatabaseException as e:
+        tryToClose(conn)
+        return []
+    except:
         tryToClose(conn)
         return []
 
@@ -718,88 +762,12 @@ def getClosePhotos(photoID: int) -> List[int]:
     except DatabaseException as e:
         tryToClose(conn)
         return []
+    except:
+        tryToClose(conn)
+        return []
 
     for number in values.rows:
         list.append(number[0])
 
     tryToClose(conn)
     return list
-
-
-if __name__ == '__main__':
-    conn = Connector.DBConnector()
-
-    dropTables()
-    createTables()
-    photo =Photo(1, "'first'", 1)
-    addPhoto(photo)
-    #getPhotoByID(1)
-    #deletePhoto(Photo(1, "'first'", 1))
-    disk = Disk(1, "'ONE'", 10, 15, 2)
-    addDisk(disk)
-
-    #getDiskByID(1)
-    #deleteRAM(1)
-    photo2 = Photo(2, "'first'", 2)
-    photo3 = Photo(3, "'first'", 2)
-    photo4 = Photo(4, "'first'", 2)
-    photo5 = Photo(5, "'first'", 2)
-    photo6 = Photo(6, "'first'", 2)
-    photo7 = Photo(7, "'first'", 2)
-    disk2 = Disk(2, "'two'", 10, 4, 2)
-    addPhoto(photo2)
-    addPhoto(photo3)
-    addPhoto(photo4)
-    addPhoto(photo5)
-    addPhoto(photo6)
-    addPhoto(photo7)
-    addDisk(disk2)
-
-    #addPhotoToDisk(photo, 1)
-    #addPhotoToDisk(photo, 2)
-    addPhotoToDisk(photo2, 1)
-    addPhotoToDisk(photo3, 1)
-    addPhotoToDisk(photo3, 2)
-
-
-    ram = RAM(1, "'two'", 2)
-    addRAM(ram)
-    #addRAMToDisk(1, 2)
-
-
-    #rows2, values2 = conn.execute(f"""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT SUM(Size)
-    #FROM RAMONDISK FULL JOIN RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID=1) AND DiskSizeNeeded(
-    #SELECT FreeSpace FROM Disk WHERE DiskID = 1);""")
-
-
-    row, values = conn.execute(f"""
-    SELECT * FROM 
-    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID
-    WHERE 
-    DiskID IN (SELECT DiskID FROM PhotoOnDisk WHERE PhotoID=1) AND Photo.PhotoID<>1 
-    GROUP BY Photo.PhotoID 
-    HAVING COUNT(DiskID)>=0.5*(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID=1)) AS T1 UNION
-    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID 
-    WHERE Photo.PhotoID<>1 GROUP BY Photo.PhotoID, DiskID 
-    HAVING COUNT(DiskID)=(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID=1) AND COUNT(DiskID)=0) 
-    ORDER BY PhotoID ASC LIMIT 10;""")
-
-    #row, values = conn.execute(f"""SELECT Photo.PhotoID, DiskID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID
-    #WHERE Photo.PhotoID<>1 GROUP BY Photo.PhotoID, DiskID HAVING COUNT(DiskID)=(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID=1)""")
-    print(values)
-    print(f"ROWS: {row}")
-
-    #print(mostAvailableDisks())
-
-    #print(isDiskContainingAtLeastNumExists("first", 1))
-    #print(isCompanyExclusive(2))
-    #print(getCostForDescription("first1"))
-
-
-
-    #print(averagePhotosSizeOnDisk(3))
-
-    #removePhotoFromDisk(photo, 1)
-
-    #removeRAMFromDisk(1, 2)
-    tryToClose(conn)
