@@ -90,8 +90,10 @@ def createTables():
     except DatabaseException as e:
         print(e)
         tryToClose(conn)
+        return
     except:
         tryToClose(conn)
+        return
 
     tryToClose(conn)
 
@@ -365,7 +367,7 @@ def addDiskAndPhoto(disk: Disk, photo: Photo) -> ReturnValue:
     except DatabaseException.CHECK_VIOLATION as e:
         print(e)
         tryToClose(conn)
-        return ReturnValue.ERROR
+        return ReturnValue.BAD_PARAMS
     except DatabaseException as e:
         print(e)
         tryToClose(conn)
@@ -417,8 +419,9 @@ def addPhotoToDisk(photo: Photo, diskID: int) -> ReturnValue:
 def removePhotoFromDisk(photo: Photo, diskID: int) -> ReturnValue:
     message1 = sql.SQL("""UPDATE Disk SET Freespace = Freespace + {size} 
             WHERE DiskID IN (SELECT DiskID FROM PhotoOnDisk 
-        WHERE PhotoID={pid} AND DiskID={dID});""").format(dID=sql.Literal(diskID), size=sql.Literal(photo.getSize()),
-                                                          pid=sql.Literal(photo.getPhotoID()))
+        WHERE PhotoID={pid} AND DiskID={dID}) AND EXISTS (SELECT PhotoID FROM Photo WHERE PhotoID={pid}
+        AND Description={desc} AND DiskSizeNeeded={size});""").format(dID=sql.Literal(diskID), size=sql.Literal(photo.getSize()),
+                                                          pid=sql.Literal(photo.getPhotoID()), desc=sql.Literal(photo.getDescription()))
 
     message2 = sql.SQL("""DELETE FROM PhotoOnDisk 
         WHERE PhotoID={pid} AND DiskID={did};""").format(pid=sql.Literal(photo.getPhotoID()),did=sql.Literal(diskID))
@@ -433,7 +436,7 @@ def removePhotoFromDisk(photo: Photo, diskID: int) -> ReturnValue:
     except DatabaseException as e:
         tryToClose(conn)
         return ReturnValue.ERROR
-    except:
+    except Exception as e:
         tryToClose(conn)
         return ReturnValue.ERROR
 
@@ -591,8 +594,8 @@ def getPhotosCanBeAddedToDisk(diskID: int) -> List[int]:
 def getPhotosCanBeAddedToDiskAndRAM(diskID: int) -> List[int]:
     list = []
     message = sql.SQL("""SELECT PhotoID FROM Photo WHERE DiskSizeNeeded <= (SELECT FreeSpace 
-        FROM Disk WHERE DiskID = {id}) AND DiskSizeNeeded <= (SELECT SUM(Size) FROM RAMONDISK JOIN
-        RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID={id}) 
+        FROM Disk WHERE DiskID = {id}) AND (DiskSizeNeeded <= (SELECT SUM(Size) FROM RAMONDISK JOIN
+        RAM ON RAM.RAMID=RAMONDISK.RAMID WHERE RAMONDISK.DiskID={id}) OR DiskSizeNeeded=0)  
         ORDER BY PhotoID ASC LIMIT 5;""").format(id=sql.Literal(diskID))
 
     try:
@@ -717,10 +720,10 @@ def getConflictingDisks() -> List[int]:
 
 def mostAvailableDisks() -> List[int]:
     list = []
-    message = sql.SQL("""SELECT T1.DiskID FROM
-    (SELECT * FROM Photo INNER JOIN PhotoOnDisk ON Photo.PhotoID=PhotoOnDisk.PhotoID) AS T1 JOIN Disk 
-    ON T1.DiskID=Disk.DiskID WHERE Disk.FreeSpace>=T1.DiskSizeNeeded GROUP BY T1.DiskID, Disk.Speed, Disk.DiskID 
-    ORDER BY COUNT(*) DESC, Disk.Speed DESC, Disk.DiskID ASC LIMIT 5;""")
+    message = sql.SQL("""SELECT DiskID FROM ((SELECT * FROM 
+        (SELECT Disk.DiskID, Disk.Speed FROM (Photo JOIN Disk ON Disk.FreeSpace>=Photo.DiskSizeNeeded)) AS T1) GROUP BY DiskID, Speed 
+        UNION (SELECT Disk.DiskID, Disk.Speed From Disk)) AS T2 GROUP BY DiskID, Speed 
+        ORDER BY COUNT(*) DESC, Speed DESC, DiskID ASC LIMIT 5;""")
 
     try:
         conn = Connector.DBConnector()
@@ -749,9 +752,8 @@ def getClosePhotos(photoID: int) -> List[int]:
     DiskID IN (SELECT DiskID FROM PhotoOnDisk WHERE PhotoID={id}) AND Photo.PhotoID<>{id} 
     GROUP BY Photo.PhotoID 
     HAVING COUNT(DiskID)>=0.5*(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID={id})) AS T1 UNION
-    (SELECT Photo.PhotoID FROM PhotoOnDisk FULL JOIN Photo ON PhotoOnDisk.PhotoID=Photo.PhotoID 
-    WHERE Photo.PhotoID<>{id} GROUP BY Photo.PhotoID, DiskID 
-    HAVING COUNT(DiskID)=(SELECT COUNT(*) FROM PhotoOnDisk WHERE PhotoID={id}) AND COUNT(DiskID)=0) 
+    (SELECT Photo.PhotoID FROM Photo WHERE ({id} NOT IN (SELECT PhotoID FROM Photo) OR {id} NOT IN (SELECT 
+    PhotoID FROM PhotoOnDisk)) AND {id}<>Photo.PhotoID) 
     ORDER BY PhotoID ASC LIMIT 10;""").format(id=sql.Literal(photoID))
 
     try:
@@ -771,3 +773,35 @@ def getClosePhotos(photoID: int) -> List[int]:
 
     tryToClose(conn)
     return list
+
+
+
+if __name__ == "__main__":
+    dropTables()
+    createTables()
+    addDisk(Disk(5, "DELL", 5, 10, 5))
+    addDisk(Disk(4, "DELL", 10, 5, 10))
+    addDisk(Disk(3, "DELL", 4, 5, 4))
+    addDisk(Disk(2, "DELL", 6, 2, 6))
+    addDisk(Disk(1, "DELL", 5, 5, 5))
+    addPhoto(Photo(1, "MP3", 3))
+
+    conn = Connector.DBConnector()
+
+    rows, values = conn.execute(f"""SELECT * FROM 
+            (SELECT DiskID, Speed FROM (Photo JOIN Disk ON Disk.FreeSpace>=Photo.DiskSizeNeeded) AS T2) AS T1 GROUP BY DiskID, Speed;""")
+    print("1:")
+    print(values)
+
+    rows, values = conn.execute(f"""SELECT DiskID, Speed From Disk AS T2 GROUP BY DiskID, Speed;""")
+    print("2:")
+    print(values)
+
+    rows, values = conn.execute(f"""SELECT DiskID, COUNT(*) FROM ((SELECT * FROM 
+        (SELECT Disk.DiskID, Disk.Speed FROM (Photo JOIN Disk ON Disk.FreeSpace>=Photo.DiskSizeNeeded)) AS T1 GROUP BY DiskID, Speed)  
+        UNION (SELECT Disk.DiskID, Disk.Speed From Disk)) AS T2 GROUP BY DiskID, Speed 
+        ORDER BY COUNT(*) DESC, Speed DESC, DiskID ASC LIMIT 5;""")
+
+    print(values)
+
+    conn.close()
